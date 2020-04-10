@@ -377,3 +377,58 @@ Wolfram Sang <wsa@kernel.org> <wsa@the-dreams.de>
 Yakir Yang <kuankuan.y@gmail.com> <ykk@rock-chips.com>
 Yusuke Goda <goda.yusuke@renesas.com>
 Zhu Yanjun <zyjzyj2000@gmail.com> <yanjunz@nvidia.com>
+# local additions
+Alexander Potapenko <glider@chromium.org>
+Alexander Potapenko <glider@chromium.org> <glider@google.com>
+Alexandru Stan <amstan@chromium.org>
+Dmitry Torokhov <dtor@chromium.org> <dmitry.torokhov@gmail.com>
+Dmitry Torokhov <dtor@chromium.org> <dtor@google.com>
+Douglas Anderson <dianders@chromium.org>
+Douglas Anderson <dianders@chromium.org> <armlinux@m.disordat.com>
+Douglas Anderson <dianders@chromium.org> <[dianders@chromium.org]>
+Duncan Laurie <dlaurie@chromium.org>
+Guenter Roeck <groeck@chromium.org> <linux@roeck-us.net>
+Guenter Roeck <groeck@chromium.org> <guenter.roeck@ericsson.com>
+Hsin-Yi Wang <hsinyi@chromium.org>
+Hsin-Yi Wang <hsinyi@chromium.org> <hsinyi@google.com>
+Joel Fernandes <joelaf@chromium.org>
+Joel Fernandes <joelaf@chromium.org> <joel@joelfernandes.org>
+Joel Fernandes <joelaf@chromium.org> <joelaf@google.com>
+Paul Hsia <paulhsia@chromium.org>
+Pi-Hsun Shih <pihsun@chromium.org>
+Ravi Chandra Sadineni <ravisadineni@chromium.org>
+Stéphane Marchesin <marcheu@chromium.org>
+Stéphane Marchesin <marcheu@chromium.org> <marcheu@google.com>
+Vadim Bendebury <vbendeb@chromium.org> <vbendeb@google.com>
+<abrestic@chromium.org> <abrestic@google.com>
+<adurbin@chromium.org> <adurbin@google.com>
+<bfreed@chromium.org> <bfreed@google.com>
+<bgeffon@chromium.org> <bgeffon@google.com>
+<dehrenberg@chromium.org> <dehrenberg@google.com>
+<ejcaruso@chromium.org> <ejcaruso@google.com>
+<furquan@chromium.org> <furquan@google.com>
+<grundler@chromium.org> <grundler@google.com>
+<gwendal@chromium.org> <gwendal@google.com>
+<hughd@chromium.org> <hughd@google.com>
+<keescook@chromium.org> <keescook@google.com>
+<kirtika@chromium.org> <kirtika.ruchandani@gmail.com>
+<msb@chromium.org> <mandeep.baines@gmail.com>
+<msb@chromium.org> <msb@google.com>
+<rajatja@chromium.org> <rajatja@google.com>
+<robdclark@chromium.org> <robdclark@gmail.com>
+<semenzato@chromium.org> <semenzato@google.com>
+<senozhatsky@chromium.org> <sergey.senozhatsky@gmail.com>
+<sheu@chromium.org> <john.sheu@gmail.com>
+<sheu@chromium.org> <sheu@google.com>
+<snanda@chromium.org> <snanda@google.com>
+<swboyd@chromium.org> <sboyd@kernel.org>
+<tzungbi@chromium.org> <tzungbi@google.com>
+<ttuttle@chromium.org> <linux-kernel@ttuttle.net>
+<ttuttle@chromium.org> <ttuttle@google.com>
+<vapier@chromium.org> <vapier@gentoo.org>
+<wklin@chromium.org> <wklin@google.com>
+<wnhuang@chromium.org> <wnhuang@google.com>
+<wuchengli@chromium.org> <wuchengli@google.com>
+<zwisler@chromium.org> <zwisler@kernel.org>
+<zwisler@chromium.org> <ross.zwisler@linux.intel.com>
+<zachr@chromium.org> <zachr@google.com>
