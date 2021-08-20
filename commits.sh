@@ -2,9 +2,9 @@
 
 authors="$(git log --use-mailmap --author="@chromium.org" --format="format:%aE" | sort -u)"
 
-syear="2020"
+syear="2021"
 eyear="2021"
-emonth="7"
+emonth="8"
 
 asince="1/1/${syear}"
 nauthors=""
