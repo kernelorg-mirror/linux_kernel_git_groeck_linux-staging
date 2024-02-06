@@ -14,6 +14,7 @@
 
 #include <linux/bitops.h>
 
+struct dentry;
 struct device;
 struct attribute_group;
 
@@ -480,6 +481,10 @@ int hwmon_notify_event(struct device *dev, enum hwmon_sensor_types type,
 
 char *hwmon_sanitize_name(const char *name);
 char *devm_hwmon_sanitize_name(struct device *dev, const char *name);
+
+struct dentry *hwmon_debugfs_create_dir(struct device *dev,
+					const char *rootname,
+					const char *dirname);
 
 /**
  * hwmon_is_bad_char - Is the char invalid in a hwmon name
