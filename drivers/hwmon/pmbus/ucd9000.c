@@ -66,7 +66,6 @@ struct ucd9000_data {
 #ifdef CONFIG_GPIOLIB
 	struct gpio_chip gpio;
 #endif
-	struct dentry *debugfs;
 	ktime_t write_time;
 };
 #define to_ucd9000_data(_info) container_of(_info, struct ucd9000_data, info)
@@ -511,8 +510,6 @@ static int ucd9000_init_debugfs(struct i2c_client *client,
 	if (!debugfs)
 		return -ENOENT;
 
-	data->debugfs = debugfs_create_dir(client->name, debugfs);
-
 	/*
 	 * Of the chips this driver supports, only the UCD9090, UCD90160,
 	 * UCD90320, and UCD90910 report GPI faults in their MFR_STATUS
@@ -534,14 +531,14 @@ static int ucd9000_init_debugfs(struct i2c_client *client,
 			entries[i].index = i;
 			scnprintf(name, UCD9000_DEBUGFS_NAME_LEN,
 				  "gpi%d_alarm", i + 1);
-			debugfs_create_file(name, 0444, data->debugfs,
+			debugfs_create_file(name, 0444, debugfs,
 					    &entries[i],
 					    &ucd9000_debugfs_mfr_status_bit);
 		}
 	}
 
 	scnprintf(name, UCD9000_DEBUGFS_NAME_LEN, "mfr_status");
-	debugfs_create_file(name, 0444, data->debugfs, client,
+	debugfs_create_file(name, 0444, debugfs, client,
 			    &ucd9000_debugfs_show_mfr_status_fops);
 
 	return 0;
