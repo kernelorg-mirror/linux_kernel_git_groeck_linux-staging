@@ -12,11 +12,6 @@
 #include <linux/of.h>
 #include "pmbus.h"
 
-struct dps920ab_data {
-	char *mfr_model;
-	char *mfr_id;
-};
-
 static int dps920ab_read_word_data(struct i2c_client *client, int page, int phase, int reg)
 {
 	/*
@@ -87,61 +82,10 @@ static struct pmbus_driver_info dps920ab_info = {
 	.write_word_data = dps920ab_write_word_data,
 };
 
-static int dps920ab_mfr_id_show(struct seq_file *s, void *data)
-{
-	struct dps920ab_data *priv = s->private;
-
-	seq_printf(s, "%s\n", priv->mfr_id);
-
-	return 0;
-}
-
-DEFINE_SHOW_ATTRIBUTE(dps920ab_mfr_id);
-
-static int dps920ab_mfr_model_show(struct seq_file *s, void *data)
-{
-	struct dps920ab_data *priv = s->private;
-
-	seq_printf(s, "%s\n", priv->mfr_model);
-
-	return 0;
-}
-
-DEFINE_SHOW_ATTRIBUTE(dps920ab_mfr_model);
-
-static void dps920ab_init_debugfs(struct dps920ab_data *data, struct i2c_client *client)
-{
-	struct dentry *debugfs_dir;
-	struct dentry *root;
-
-	root = pmbus_get_debugfs_dir(client);
-	if (!root)
-		return;
-
-	debugfs_dir = debugfs_create_dir(client->name, root);
-
-	debugfs_create_file("mfr_id",
-			    0400,
-			    debugfs_dir,
-			    data,
-			    &dps920ab_mfr_id_fops);
-
-	debugfs_create_file("mfr_model",
-			    0400,
-			    debugfs_dir,
-			    data,
-			    &dps920ab_mfr_model_fops);
-}
-
 static int dps920ab_probe(struct i2c_client *client)
 {
 	u8 buf[I2C_SMBUS_BLOCK_MAX + 1];
-	struct dps920ab_data *data;
 	int ret;
-
-	data = devm_kzalloc(&client->dev, sizeof(*data), GFP_KERNEL);
-	if (!data)
-		return -ENOMEM;
 
 	ret = i2c_smbus_read_block_data(client, PMBUS_MFR_ID, buf);
 	if (ret < 0) {
@@ -155,9 +99,6 @@ static int dps920ab_probe(struct i2c_client *client)
 		dev_err(&client->dev, "Unsupported Manufacturer ID '%s'\n", buf);
 		return -ENODEV;
 	}
-	data->mfr_id = devm_kstrdup(&client->dev, buf, GFP_KERNEL);
-	if (!data->mfr_id)
-		return -ENOMEM;
 
 	ret = i2c_smbus_read_block_data(client, PMBUS_MFR_MODEL, buf);
 	if (ret < 0) {
@@ -170,15 +111,10 @@ static int dps920ab_probe(struct i2c_client *client)
 		dev_err(&client->dev, "Unsupported Manufacturer Model '%s'\n", buf);
 		return -ENODEV;
 	}
-	data->mfr_model = devm_kstrdup(&client->dev, buf, GFP_KERNEL);
-	if (!data->mfr_model)
-		return -ENOMEM;
 
 	ret = pmbus_do_probe(client, &dps920ab_info);
 	if (ret)
 		return ret;
-
-	dps920ab_init_debugfs(data, client);
 
 	return 0;
 }
