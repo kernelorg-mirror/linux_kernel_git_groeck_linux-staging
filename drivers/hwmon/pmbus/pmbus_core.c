@@ -3359,11 +3359,11 @@ static int pmbus_init_debugfs(struct i2c_client *client,
 
 	/*
 	 * Allocate the max possible entries we need.
-	 * 6 entries device-specific
+	 * 7 entries device-specific
 	 * 10 entries page-specific
 	 */
 	entries = devm_kcalloc(data->dev,
-			       6 + data->info->pages * 10, sizeof(*entries),
+			       7 + data->info->pages * 10, sizeof(*entries),
 			       GFP_KERNEL);
 	if (!entries)
 		return -ENOMEM;
@@ -3428,6 +3428,14 @@ static int pmbus_init_debugfs(struct i2c_client *client,
 		debugfs_create_file("mfr_serial", 0444, data->debugfs,
 				    &entries[idx++],
 				    &pmbus_debugfs_ops_mfr);
+	}
+
+	if (pmbus_check_byte_register(client, 0, PMBUS_REVISION)) {
+		entries[idx].client = client;
+		entries[idx].page = 0;
+		entries[idx].reg = PMBUS_REVISION;
+		debugfs_create_file("pmbus_revision", 0444, data->debugfs,
+				    &entries[idx++], &pmbus_debugfs_ops);
 	}
 
 	/* Add page specific entries */
