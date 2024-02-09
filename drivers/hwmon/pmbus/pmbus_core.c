@@ -3258,8 +3258,6 @@ static int pmbus_irq_setup(struct i2c_client *client, struct pmbus_data *data)
 	return 0;
 }
 
-static struct dentry *pmbus_debugfs_dir;	/* pmbus debugfs directory */
-
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static int pmbus_debugfs_get(void *data, u64 *val)
 {
@@ -3350,19 +3348,14 @@ static int pmbus_init_debugfs(struct i2c_client *client,
 	char name[PMBUS_NAME_SIZE];
 	struct pmbus_debugfs_entry *entries;
 
-	if (!pmbus_debugfs_dir)
-		return -ENODEV;
-
 	/*
 	 * Create the debugfs directory for this device. Use the hwmon device
 	 * name to avoid conflicts (hwmon numbers are globally unique).
 	 */
-	data->debugfs = debugfs_create_dir(dev_name(data->hwmon_dev),
-					   pmbus_debugfs_dir);
-	if (IS_ERR_OR_NULL(data->debugfs)) {
-		data->debugfs = NULL;
+	data->debugfs = hwmon_debugfs_create_dir(data->hwmon_dev, "pmbus",
+						 dev_name(data->hwmon_dev));
+	if (!data->debugfs)
 		return -ENODEV;
-	}
 
 	/*
 	 * Allocate the max possible entries we need.
@@ -3669,23 +3662,6 @@ void pmbus_unlock(struct i2c_client *client)
 	mutex_unlock(&data->update_lock);
 }
 EXPORT_SYMBOL_NS_GPL(pmbus_unlock, PMBUS);
-
-static int __init pmbus_core_init(void)
-{
-	pmbus_debugfs_dir = debugfs_create_dir("pmbus", NULL);
-	if (IS_ERR(pmbus_debugfs_dir))
-		pmbus_debugfs_dir = NULL;
-
-	return 0;
-}
-
-static void __exit pmbus_core_exit(void)
-{
-	debugfs_remove_recursive(pmbus_debugfs_dir);
-}
-
-module_init(pmbus_core_init);
-module_exit(pmbus_core_exit);
 
 MODULE_AUTHOR("Guenter Roeck");
 MODULE_DESCRIPTION("PMBus core driver");
