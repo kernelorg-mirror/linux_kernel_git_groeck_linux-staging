@@ -31,11 +31,6 @@ enum {
 	Q54SJ108A2_DEBUGFS_STOREDEFAULT,
 	Q54SJ108A2_DEBUGFS_VOOV_RESPONSE,
 	Q54SJ108A2_DEBUGFS_IOOC_RESPONSE,
-	Q54SJ108A2_DEBUGFS_PMBUS_VERSION,
-	Q54SJ108A2_DEBUGFS_MFR_ID,
-	Q54SJ108A2_DEBUGFS_MFR_MODEL,
-	Q54SJ108A2_DEBUGFS_MFR_REVISION,
-	Q54SJ108A2_DEBUGFS_MFR_LOCATION,
 	Q54SJ108A2_DEBUGFS_BLACKBOX_ERASE,
 	Q54SJ108A2_DEBUGFS_BLACKBOX_READ_OFFSET,
 	Q54SJ108A2_DEBUGFS_BLACKBOX_SET_OFFSET,
@@ -109,33 +104,6 @@ static ssize_t q54sj108a2_debugfs_read(struct file *file, char __user *buf,
 			return rc;
 
 		rc = snprintf(data, 3, "%02x", rc);
-		break;
-	case Q54SJ108A2_DEBUGFS_PMBUS_VERSION:
-		rc = i2c_smbus_read_byte_data(psu->client, PMBUS_REVISION);
-		if (rc < 0)
-			return rc;
-
-		rc = snprintf(data, 3, "%02x", rc);
-		break;
-	case Q54SJ108A2_DEBUGFS_MFR_ID:
-		rc = i2c_smbus_read_block_data(psu->client, PMBUS_MFR_ID, data);
-		if (rc < 0)
-			return rc;
-		break;
-	case Q54SJ108A2_DEBUGFS_MFR_MODEL:
-		rc = i2c_smbus_read_block_data(psu->client, PMBUS_MFR_MODEL, data);
-		if (rc < 0)
-			return rc;
-		break;
-	case Q54SJ108A2_DEBUGFS_MFR_REVISION:
-		rc = i2c_smbus_read_block_data(psu->client, PMBUS_MFR_REVISION, data);
-		if (rc < 0)
-			return rc;
-		break;
-	case Q54SJ108A2_DEBUGFS_MFR_LOCATION:
-		rc = i2c_smbus_read_block_data(psu->client, PMBUS_MFR_LOCATION, data);
-		if (rc < 0)
-			return rc;
 		break;
 	case Q54SJ108A2_DEBUGFS_BLACKBOX_READ_OFFSET:
 		rc = i2c_smbus_read_byte_data(psu->client, READ_HISTORY_EVENT_NUMBER);
@@ -281,7 +249,6 @@ static int q54sj108a2_probe(struct i2c_client *client)
 	enum chips chip_id;
 	int ret, i;
 	struct dentry *debugfs;
-	struct dentry *q54sj108a2_dir;
 	struct q54sj108a2_data *psu;
 
 	if (!i2c_check_functionality(client->adapter,
@@ -343,57 +310,40 @@ static int q54sj108a2_probe(struct i2c_client *client)
 
 	debugfs = pmbus_get_debugfs_dir(client);
 
-	q54sj108a2_dir = debugfs_create_dir(client->name, debugfs);
-
 	for (i = 0; i < Q54SJ108A2_DEBUGFS_NUM_ENTRIES; ++i)
 		psu->debugfs_entries[i] = i;
 
-	debugfs_create_file("operation", 0644, q54sj108a2_dir,
+	debugfs_create_file("operation", 0644, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_OPERATION],
 			    &q54sj108a2_fops);
-	debugfs_create_file("clear_fault", 0200, q54sj108a2_dir,
+	debugfs_create_file("clear_fault", 0200, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_CLEARFAULT],
 			    &q54sj108a2_fops);
-	debugfs_create_file("write_protect", 0444, q54sj108a2_dir,
+	debugfs_create_file("write_protect", 0444, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_WRITEPROTECT],
 			    &q54sj108a2_fops);
-	debugfs_create_file("store_default", 0200, q54sj108a2_dir,
+	debugfs_create_file("store_default", 0200, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_STOREDEFAULT],
 			    &q54sj108a2_fops);
-	debugfs_create_file("vo_ov_response", 0644, q54sj108a2_dir,
+	debugfs_create_file("vo_ov_response", 0644, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_VOOV_RESPONSE],
 			    &q54sj108a2_fops);
-	debugfs_create_file("io_oc_response", 0644, q54sj108a2_dir,
+	debugfs_create_file("io_oc_response", 0644, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_IOOC_RESPONSE],
 			    &q54sj108a2_fops);
-	debugfs_create_file("pmbus_revision", 0444, q54sj108a2_dir,
-			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_PMBUS_VERSION],
-			    &q54sj108a2_fops);
-	debugfs_create_file("mfr_id", 0444, q54sj108a2_dir,
-			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_MFR_ID],
-			    &q54sj108a2_fops);
-	debugfs_create_file("mfr_model", 0444, q54sj108a2_dir,
-			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_MFR_MODEL],
-			    &q54sj108a2_fops);
-	debugfs_create_file("mfr_revision", 0444, q54sj108a2_dir,
-			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_MFR_REVISION],
-			    &q54sj108a2_fops);
-	debugfs_create_file("mfr_location", 0444, q54sj108a2_dir,
-			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_MFR_LOCATION],
-			    &q54sj108a2_fops);
-	debugfs_create_file("blackbox_erase", 0200, q54sj108a2_dir,
+	debugfs_create_file("blackbox_erase", 0200, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_BLACKBOX_ERASE],
 			    &q54sj108a2_fops);
-	debugfs_create_file("blackbox_read_offset", 0444, q54sj108a2_dir,
+	debugfs_create_file("blackbox_read_offset", 0444, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_BLACKBOX_READ_OFFSET],
 			    &q54sj108a2_fops);
-	debugfs_create_file("blackbox_set_offset", 0200, q54sj108a2_dir,
+	debugfs_create_file("blackbox_set_offset", 0200, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_BLACKBOX_SET_OFFSET],
 			    &q54sj108a2_fops);
-	debugfs_create_file("blackbox_read", 0444, q54sj108a2_dir,
+	debugfs_create_file("blackbox_read", 0444, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_BLACKBOX_READ],
 			    &q54sj108a2_fops);
-	debugfs_create_file("flash_key", 0444, q54sj108a2_dir,
+	debugfs_create_file("flash_key", 0444, debugfs,
 			    &psu->debugfs_entries[Q54SJ108A2_DEBUGFS_FLASH_KEY],
 			    &q54sj108a2_fops);
 
