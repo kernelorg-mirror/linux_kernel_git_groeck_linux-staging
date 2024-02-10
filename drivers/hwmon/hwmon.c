@@ -10,6 +10,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/bitops.h>
+#include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/gfp.h>
@@ -66,6 +67,93 @@ struct hwmon_thermal_data {
 	int index;			/* sensor index */
 	struct thermal_zone_device *tzd;/* thermal zone device */
 };
+
+/* debugfs API */
+
+struct hwmon_debugfs_data {
+	struct list_head node;
+	const char *name;
+	struct dentry *root;
+	refcount_t refcount;
+};
+
+static LIST_HEAD(hwmon_debugfs_list);
+static DEFINE_MUTEX(hwmon_debugfs_mutex);
+
+static void hwmon_debugfs_cleanup_root(void *data)
+{
+	struct hwmon_debugfs_data *pos = data;
+
+	mutex_lock(&hwmon_debugfs_mutex);
+	if (refcount_dec_and_test(&pos->refcount)) {
+		debugfs_remove_recursive(pos->root);
+		list_del(&pos->node);
+		kfree(pos);
+	}
+	mutex_unlock(&hwmon_debugfs_mutex);
+}
+
+static struct dentry *hwmon_debugfs_get_root(struct device *dev, const char *name)
+{
+	struct hwmon_debugfs_data *pos;
+	struct dentry *root;
+	int err;
+
+	mutex_lock(&hwmon_debugfs_mutex);
+	list_for_each_entry(pos, &hwmon_debugfs_list, node) {
+		if (!strcmp(name, pos->name)) {
+			refcount_inc(&pos->refcount);
+			root = pos->root;
+			goto done;
+		}
+	}
+	root = debugfs_create_dir(name, NULL);
+	if (IS_ERR(root))
+		goto error;
+	pos = kzalloc(sizeof(*pos), GFP_KERNEL);
+	if (!pos)
+		goto debugfs_remove_root;
+	pos->name = name;
+	pos->root = root;
+	refcount_set(&pos->refcount, 1);
+
+	list_add(&pos->node, &hwmon_debugfs_list);
+
+	err = devm_add_action(dev, hwmon_debugfs_cleanup_root, &pos->node);
+	if (err)
+		goto del_list;
+done:
+	mutex_unlock(&hwmon_debugfs_mutex);
+	return root;
+
+del_list:
+	list_del(&pos->node);
+	kfree(pos);
+debugfs_remove_root:
+	debugfs_remove_recursive(root);
+error:
+	mutex_unlock(&hwmon_debugfs_mutex);
+	return NULL;
+}
+
+static void hwmon_debugfs_cleanup_dir(void *data)
+{
+	debugfs_remove_recursive(data);
+}
+
+struct dentry *hwmon_debugfs_create_dir(struct device *dev, const char *rootname,
+					const char *dirname)
+{
+	struct dentry *root, *dir;
+
+	root = hwmon_debugfs_get_root(dev, rootname);
+	dir = debugfs_create_dir(dirname, root);
+	if (!dir || devm_add_action_or_reset(dev, hwmon_debugfs_cleanup_dir, dir))
+		return NULL;
+
+	return dir;
+}
+EXPORT_SYMBOL_GPL(hwmon_debugfs_create_dir);
 
 static ssize_t
 name_show(struct device *dev, struct device_attribute *attr, char *buf)

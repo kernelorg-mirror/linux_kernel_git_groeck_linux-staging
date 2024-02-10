@@ -307,7 +307,6 @@ static int max20730_init_debugfs(struct i2c_client *client,
 {
 	int ret, i;
 	struct dentry *debugfs;
-	struct dentry *max20730_dir;
 	struct max20730_debugfs_data *psu;
 
 	ret = i2c_smbus_read_word_data(client, MAX20730_MFR_DEVSET2);
@@ -329,54 +328,52 @@ static int max20730_init_debugfs(struct i2c_client *client,
 	if (!debugfs)
 		return -ENOENT;
 
-	max20730_dir = debugfs_create_dir(client->name, debugfs);
-
 	for (i = 0; i < MAX20730_DEBUGFS_NUM_ENTRIES; ++i)
 		psu->debugfs_entries[i] = i;
 
-	debugfs_create_file("vout_min", 0444, max20730_dir,
+	debugfs_create_file("vout_min", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_VOUT_MIN],
 			    &max20730_fops);
-	debugfs_create_file("frequency", 0444, max20730_dir,
+	debugfs_create_file("frequency", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_FREQUENCY],
 			    &max20730_fops);
-	debugfs_create_file("power_good_delay", 0444, max20730_dir,
+	debugfs_create_file("power_good_delay", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_PG_DELAY],
 			    &max20730_fops);
-	debugfs_create_file("internal_gain", 0444, max20730_dir,
+	debugfs_create_file("internal_gain", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_INTERNAL_GAIN],
 			    &max20730_fops);
-	debugfs_create_file("boot_voltage", 0444, max20730_dir,
+	debugfs_create_file("boot_voltage", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_BOOT_VOLTAGE],
 			    &max20730_fops);
-	debugfs_create_file("out_voltage_ramp_rate", 0444, max20730_dir,
+	debugfs_create_file("out_voltage_ramp_rate", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_OUT_V_RAMP_RATE],
 			    &max20730_fops);
-	debugfs_create_file("oc_protection_mode", 0444, max20730_dir,
+	debugfs_create_file("oc_protection_mode", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_OC_PROTECT_MODE],
 			    &max20730_fops);
-	debugfs_create_file("soft_start_timing", 0444, max20730_dir,
+	debugfs_create_file("soft_start_timing", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_SS_TIMING],
 			    &max20730_fops);
-	debugfs_create_file("imax", 0444, max20730_dir,
+	debugfs_create_file("imax", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_IMAX],
 			    &max20730_fops);
-	debugfs_create_file("operation", 0444, max20730_dir,
+	debugfs_create_file("operation", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_OPERATION],
 			    &max20730_fops);
-	debugfs_create_file("on_off_config", 0444, max20730_dir,
+	debugfs_create_file("on_off_config", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_ON_OFF_CONFIG],
 			    &max20730_fops);
-	debugfs_create_file("smbalert_mask", 0444, max20730_dir,
+	debugfs_create_file("smbalert_mask", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_SMBALERT_MASK],
 			    &max20730_fops);
-	debugfs_create_file("vout_mode", 0444, max20730_dir,
+	debugfs_create_file("vout_mode", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_VOUT_MODE],
 			    &max20730_fops);
-	debugfs_create_file("vout_command", 0444, max20730_dir,
+	debugfs_create_file("vout_command", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_VOUT_COMMAND],
 			    &max20730_fops);
-	debugfs_create_file("vout_max", 0444, max20730_dir,
+	debugfs_create_file("vout_max", 0444, debugfs,
 			    &psu->debugfs_entries[MAX20730_DEBUGFS_VOUT_MAX],
 			    &max20730_fops);
 

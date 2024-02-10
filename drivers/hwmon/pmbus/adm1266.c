@@ -54,7 +54,6 @@ struct adm1266_data {
 	struct gpio_chip gc;
 	const char *gpio_names[ADM1266_GPIO_NR + ADM1266_PDIO_NR];
 	struct i2c_client *client;
-	struct dentry *debugfs_dir;
 	struct nvmem_config nvmem_config;
 	struct nvmem_device *nvmem;
 	u8 *dev_mem;
@@ -339,9 +338,7 @@ static void adm1266_init_debugfs(struct adm1266_data *data)
 	if (!root)
 		return;
 
-	data->debugfs_dir = debugfs_create_dir(data->client->name, root);
-
-	debugfs_create_devm_seqfile(&data->client->dev, "sequencer_state", data->debugfs_dir,
+	debugfs_create_devm_seqfile(&data->client->dev, "sequencer_state", root,
 				    adm1266_state_read);
 }
 
