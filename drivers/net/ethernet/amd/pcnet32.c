@@ -754,6 +754,7 @@ static int pcnet32_set_link_ksettings(struct net_device *dev,
 	int r = -EOPNOTSUPP;
 	int suspended, bcr2, bcr9, csr15;
 
+	local_bh_disable();
 	spin_lock_irqsave(&lp->lock, flags);
 	if (lp->mii) {
 		r = mii_ethtool_set_link_ksettings(&lp->mii_if, cmd);
@@ -789,6 +790,7 @@ static int pcnet32_set_link_ksettings(struct net_device *dev,
 		r = 0;
 	}
 	spin_unlock_irqrestore(&lp->lock, flags);
+	local_bh_enable();
 	return r;
 }
 
@@ -890,6 +892,7 @@ static int pcnet32_set_ringparam(struct net_device *dev,
 		pcnet32_netif_stop(dev);
 
 	netdev_lock(dev);
+	local_bh_disable();
 	spin_lock_irqsave(&lp->lock, flags);
 	lp->a->write_csr(ioaddr, CSR0, CSR0_STOP);	/* stop the chip */
 
@@ -921,6 +924,7 @@ static int pcnet32_set_ringparam(struct net_device *dev,
 	}
 
 	spin_unlock_irqrestore(&lp->lock, flags);
+	local_bh_enable();
 	netdev_unlock(dev);
 
 	netif_info(lp, drv, dev, "Ring Param Settings: RX: %d, TX: %d\n",
@@ -988,6 +992,7 @@ static int pcnet32_loopback_test(struct net_device *dev, uint64_t * data1)
 		pcnet32_netif_stop(dev);
 
 	netdev_lock(dev);
+	local_bh_disable();
 	spin_lock_irqsave(&lp->lock, flags);
 	lp->a->write_csr(ioaddr, CSR0, CSR0_STOP);	/* stop the chip */
 
@@ -1065,7 +1070,9 @@ static int pcnet32_loopback_test(struct net_device *dev, uint64_t * data1)
 		rmb();
 		while ((lp->rx_ring[x].status & teststatus) && (ticks < 200)) {
 			spin_unlock_irqrestore(&lp->lock, flags);
+			local_bh_enable();
 			msleep(1);
+			local_bh_disable();
 			spin_lock_irqsave(&lp->lock, flags);
 			rmb();
 			ticks++;
@@ -1125,6 +1132,7 @@ clean_up:
 		lp->a->write_bcr(ioaddr, 20, 4);	/* return to 16bit mode */
 	}
 	spin_unlock_irqrestore(&lp->lock, flags);
+	local_bh_enable();
 	netdev_unlock(dev);
 
 	return rc;
@@ -2106,6 +2114,7 @@ static int pcnet32_open(struct net_device *dev)
 	}
 
 	netdev_lock(dev);
+	local_bh_disable();
 	spin_lock_irqsave(&lp->lock, flags);
 	/* Check for a valid station address */
 	if (!is_valid_ether_addr(dev->dev_addr)) {
@@ -2305,6 +2314,7 @@ static int pcnet32_open(struct net_device *dev)
 		     lp->a->read_csr(ioaddr, CSR0));
 
 	spin_unlock_irqrestore(&lp->lock, flags);
+	local_bh_enable();
 	netdev_unlock(dev);
 
 	return 0;		/* Always succeed */
@@ -2321,6 +2331,7 @@ err_free_ring:
 
 err_free_irq:
 	spin_unlock_irqrestore(&lp->lock, flags);
+	local_bh_enable();
 	netdev_unlock(dev);
 	free_irq(dev->irq, dev);
 	return rc;
