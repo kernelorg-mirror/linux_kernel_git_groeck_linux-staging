@@ -13,7 +13,6 @@
 #include <linux/pci.h>
 #include <linux/hwmon.h>
 #include <linux/err.h>
-#include <linux/mutex.h>
 #include <asm/processor.h>
 
 #define TEMP_FROM_REG(val)	(((((val) >> 16) & 0xff) - 49) * 1000)
@@ -22,8 +21,6 @@
 #define SEL_CORE	0x04
 
 struct k8temp_data {
-	struct mutex update_lock;
-
 	/* registers values */
 	u8 sensorsp;		/* sensor presence bits - SEL_CORE, SEL_PLACE */
 	u8 swap_core_select;    /* meaning of SEL_CORE is inverted */
@@ -97,7 +94,6 @@ k8temp_read(struct device *dev, enum hwmon_sensor_types type,
 
 	core ^= data->swap_core_select;
 
-	mutex_lock(&data->update_lock);
 	pci_read_config_byte(pdev, REG_TEMP, &tmp);
 	tmp &= ~(SEL_PLACE | SEL_CORE);
 	if (core)
@@ -106,7 +102,6 @@ k8temp_read(struct device *dev, enum hwmon_sensor_types type,
 		tmp |= SEL_PLACE;
 	pci_write_config_byte(pdev, REG_TEMP, tmp);
 	pci_read_config_dword(pdev, REG_TEMP, &temp);
-	mutex_unlock(&data->update_lock);
 
 	*val = TEMP_FROM_REG(temp) + data->temp_offset;
 
@@ -200,8 +195,6 @@ static int k8temp_probe(struct pci_dev *pdev,
 		if (!((temp >> 16) & 0xff)) /* if temp is 0 -49C is unlikely */
 			data->sensorsp &= ~SEL_CORE;
 	}
-
-	mutex_init(&data->update_lock);
 
 	hwmon_dev = devm_hwmon_device_register_with_info(&pdev->dev,
 							 "k8temp",
