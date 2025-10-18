@@ -463,58 +463,42 @@ static void sht3x_select_command(struct sht3x_data *data)
 	}
 }
 
-static int status_register_read(struct device *dev,
-				char *buffer, int length)
+static int status_register_check(struct device *dev, u8 mask)
 {
-	int ret;
 	struct sht3x_data *data = dev_get_drvdata(dev);
+	char buffer[SHT3X_WORD_LEN + SHT3X_CRC8_LEN];
 	struct i2c_client *client = data->client;
+	int ret;
 
 	ret = sht3x_read_from_command(client, data, sht3x_cmd_read_status_reg,
-				      buffer, length, 0);
+				      buffer, sizeof(buffer), 0);
+	if (ret < 0)
+		return ret;
 
-	return ret;
+	return !!(ret & mask);
 }
 
 static int temp1_alarm_read(struct device *dev)
 {
-	char buffer[SHT3X_WORD_LEN + SHT3X_CRC8_LEN];
-	int ret;
-
-	ret = status_register_read(dev, buffer,
-				   SHT3X_WORD_LEN + SHT3X_CRC8_LEN);
-	if (ret)
-		return ret;
-
-	return !!(buffer[0] & 0x04);
+	return status_register_check(dev, 0x04);
 }
 
 static int humidity1_alarm_read(struct device *dev)
 {
-	char buffer[SHT3X_WORD_LEN + SHT3X_CRC8_LEN];
-	int ret;
-
-	ret = status_register_read(dev, buffer,
-				   SHT3X_WORD_LEN + SHT3X_CRC8_LEN);
-	if (ret)
-		return ret;
-
-	return !!(buffer[0] & 0x08);
+	return status_register_check(dev, 0x08);
 }
 
 static ssize_t heater_enable_show(struct device *dev,
 				  struct device_attribute *attr,
 				  char *buf)
 {
-	char buffer[SHT3X_WORD_LEN + SHT3X_CRC8_LEN];
 	int ret;
 
-	ret = status_register_read(dev, buffer,
-				   SHT3X_WORD_LEN + SHT3X_CRC8_LEN);
-	if (ret)
+	ret = status_register_check(dev, 0x20);
+	if (ret < 0)
 		return ret;
 
-	return sysfs_emit(buf, "%d\n", !!(buffer[0] & 0x20));
+	return sysfs_emit(buf, "%d\n", ret);
 }
 
 static ssize_t heater_enable_store(struct device *dev,
