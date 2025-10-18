@@ -100,8 +100,8 @@ module_param(clock, int, 0444);
  */
 
 struct max6650_data {
+	struct device *hwmon_dev;
 	struct i2c_client *client;
-	struct mutex update_lock; /* protect alarm register updates */
 	int nr_fans;
 	bool valid; /* false until following fields are valid */
 	unsigned long last_updated; /* in jiffies */
@@ -157,18 +157,14 @@ static struct max6650_data *max6650_update_device(struct device *dev)
 {
 	struct max6650_data *data = dev_get_drvdata(dev);
 	struct i2c_client *client = data->client;
-	int reg, err = 0;
+	int reg;
 	int i;
-
-	mutex_lock(&data->update_lock);
 
 	if (time_after(jiffies, data->last_updated + HZ) || !data->valid) {
 		for (i = 0; i < data->nr_fans; i++) {
 			reg = i2c_smbus_read_byte_data(client, tach_reg[i]);
-			if (reg < 0) {
-				err = reg;
-				goto error;
-			}
+			if (reg < 0)
+				return ERR_PTR(reg);
 			data->tach[i] = reg;
 		}
 
@@ -178,19 +174,12 @@ static struct max6650_data *max6650_update_device(struct device *dev)
 		 * for providing the register through different alarm files.
 		 */
 		reg = i2c_smbus_read_byte_data(client, MAX6650_REG_ALARM);
-		if (reg < 0) {
-			err = reg;
-			goto error;
-		}
+		if (reg < 0)
+			return ERR_PTR(reg);
 		data->alarm |= reg;
 		data->last_updated = jiffies;
 		data->valid = true;
 	}
-
-error:
-	mutex_unlock(&data->update_lock);
-	if (err)
-		data = ERR_PTR(err);
 	return data;
 }
 
@@ -306,10 +295,10 @@ static ssize_t alarm_show(struct device *dev,
 
 	alarm = data->alarm & attr->index;
 	if (alarm) {
-		mutex_lock(&data->update_lock);
+		hwmon_lock(dev);
 		data->alarm &= ~attr->index;
 		data->valid = false;
-		mutex_unlock(&data->update_lock);
+		hwmon_unlock(dev);
 	}
 
 	return sprintf(buf, "%d\n", alarm);
@@ -494,7 +483,7 @@ static int max6650_set_cur_state(struct thermal_cooling_device *cdev,
 
 	state = clamp_val(state, 0, 255);
 
-	mutex_lock(&data->update_lock);
+	hwmon_lock(data->hwmon_dev);
 
 	data->dac = pwm_to_dac(state, data->config & MAX6650_CFG_V12);
 	err = i2c_smbus_write_byte_data(client, MAX6650_REG_DAC, data->dac);
@@ -505,7 +494,7 @@ static int max6650_set_cur_state(struct thermal_cooling_device *cdev,
 		data->cooling_dev_state = state;
 	}
 
-	mutex_unlock(&data->update_lock);
+	hwmon_unlock(data->hwmon_dev);
 
 	return err;
 }
@@ -611,10 +600,8 @@ static int max6650_write(struct device *dev, enum hwmon_sensor_types type,
 			 u32 attr, int channel, long val)
 {
 	struct max6650_data *data = dev_get_drvdata(dev);
-	int ret = 0;
+	int ret;
 	u8 reg;
-
-	mutex_lock(&data->update_lock);
 
 	switch (type) {
 	case hwmon_pwm:
@@ -625,20 +612,17 @@ static int max6650_write(struct device *dev, enum hwmon_sensor_types type,
 			ret = i2c_smbus_write_byte_data(data->client,
 							MAX6650_REG_DAC, reg);
 			if (ret)
-				break;
+				return ret;
 			data->dac = reg;
 			break;
 		case hwmon_pwm_enable:
-			if (val < 0 || val >= ARRAY_SIZE(max6650_pwm_modes)) {
-				ret = -EINVAL;
-				break;
-			}
+			if (val < 0 || val >= ARRAY_SIZE(max6650_pwm_modes))
+				return -EINVAL;
 			ret = max6650_set_operating_mode(data,
 						max6650_pwm_modes[val]);
 			break;
 		default:
-			ret = -EOPNOTSUPP;
-			break;
+			return -EOPNOTSUPP;
 		}
 		break;
 	case hwmon_fan:
@@ -658,35 +642,28 @@ static int max6650_write(struct device *dev, enum hwmon_sensor_types type,
 				reg = 3;
 				break;
 			default:
-				ret = -EINVAL;
-				goto error;
+				return -EINVAL;
 			}
 			ret = i2c_smbus_write_byte_data(data->client,
 							MAX6650_REG_COUNT, reg);
 			if (ret)
-				break;
+				return ret;
 			data->count = reg;
 			break;
 		case hwmon_fan_target:
-			if (val < 0) {
-				ret = -EINVAL;
-				break;
-			}
+			if (val < 0)
+				return -EINVAL;
 			ret = max6650_set_target(data, val);
 			break;
 		default:
-			ret = -EOPNOTSUPP;
-			break;
+			return -EOPNOTSUPP;
 		}
 		break;
 	default:
-		ret = -EOPNOTSUPP;
-		break;
+		return -EOPNOTSUPP;
 	}
 
-error:
-	mutex_unlock(&data->update_lock);
-	return ret;
+	return 0;
 }
 
 static umode_t max6650_is_visible(const void *_data,
@@ -764,7 +741,6 @@ static int max6650_probe(struct i2c_client *client)
 	struct thermal_cooling_device *cooling_dev;
 	struct device *dev = &client->dev;
 	struct max6650_data *data;
-	struct device *hwmon_dev;
 	int err;
 
 	data = devm_kzalloc(dev, sizeof(struct max6650_data), GFP_KERNEL);
@@ -773,7 +749,6 @@ static int max6650_probe(struct i2c_client *client)
 
 	data->client = client;
 	i2c_set_clientdata(client, data);
-	mutex_init(&data->update_lock);
 
 	data->nr_fans = (uintptr_t)i2c_get_match_data(client);
 
@@ -784,11 +759,9 @@ static int max6650_probe(struct i2c_client *client)
 	if (err)
 		return err;
 
-	hwmon_dev = devm_hwmon_device_register_with_info(dev,
-							 client->name, data,
-							 &max6650_chip_info,
-							 max6650_groups);
-	err = PTR_ERR_OR_ZERO(hwmon_dev);
+	data->hwmon_dev = devm_hwmon_device_register_with_info(dev,
+			client->name, data, &max6650_chip_info, max6650_groups);
+	err = PTR_ERR_OR_ZERO(data->hwmon_dev);
 	if (err)
 		return err;
 
