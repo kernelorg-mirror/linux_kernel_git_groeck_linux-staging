@@ -9,7 +9,6 @@
 #include <linux/hwmon.h>
 #include <linux/math.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/wait.h>
 
@@ -191,17 +190,6 @@ struct drvdata {
 	 * wq.lock held.
 	 */
 	wait_queue_head_t wq;
-	/*
-	 * mutex is used to:
-	 * 1) Prevent concurrent conflicting changes to update interval and pwm
-	 * values (after sending an output hid report, the corresponding field
-	 * in drvdata must be updated, and only then new output reports can be
-	 * sent).
-	 * 2) Synchronize access to output_buffer (well, the buffer is here,
-	 * because synchronization is necessary anyway - so why not get rid of
-	 * a kmalloc?).
-	 */
-	struct mutex mutex;
 	long update_interval;
 	u8 output_buffer[OUTPUT_REPORT_SIZE];
 };
@@ -472,14 +460,10 @@ static int set_pwm(struct drvdata *drvdata, int channel, long val)
 		.channel_bit_mask = 1 << channel
 	};
 
-	ret = mutex_lock_interruptible(&drvdata->mutex);
-	if (ret)
-		return ret;
-
 	report.duty_percent[channel] = duty_percent;
 	ret = send_output_report(drvdata, &report, sizeof(report));
 	if (ret)
-		goto unlock;
+		return ret;
 
 	/*
 	 * pwmconfig and fancontrol scripts expect pwm writes to take effect
@@ -495,10 +479,7 @@ static int set_pwm(struct drvdata *drvdata, int channel, long val)
 	spin_lock_bh(&drvdata->wq.lock);
 	drvdata->fan_duty_percent[channel] = duty_percent;
 	spin_unlock_bh(&drvdata->wq.lock);
-
-unlock:
-	mutex_unlock(&drvdata->mutex);
-	return ret;
+	return 0;
 }
 
 /*
@@ -601,7 +582,6 @@ static int nzxt_smart2_hwmon_write(struct device *dev,
 				   int channel, long val)
 {
 	struct drvdata *drvdata = dev_get_drvdata(dev);
-	int ret;
 
 	switch (type) {
 	case hwmon_pwm:
@@ -619,14 +599,7 @@ static int nzxt_smart2_hwmon_write(struct device *dev,
 	case hwmon_chip:
 		switch (attr) {
 		case hwmon_chip_update_interval:
-			ret = mutex_lock_interruptible(&drvdata->mutex);
-			if (ret)
-				return ret;
-
-			ret = set_update_interval(drvdata, val);
-
-			mutex_unlock(&drvdata->mutex);
-			return ret;
+			return set_update_interval(drvdata, val);
 
 		default:
 			return -EINVAL;
@@ -735,10 +708,6 @@ static int nzxt_smart2_hid_probe(struct hid_device *hdev,
 	hid_set_drvdata(hdev, drvdata);
 
 	init_waitqueue_head(&drvdata->wq);
-
-	ret = devm_mutex_init(&hdev->dev, &drvdata->mutex);
-	if (ret)
-		return ret;
 
 	ret = hid_parse(hdev);
 	if (ret)
