@@ -12,7 +12,6 @@
 #include <linux/device.h>
 #include <linux/auxiliary_bus.h>
 #include <linux/misc/keba.h>
-#include <linux/mutex.h>
 
 #define KBATT "kbatt"
 
@@ -26,8 +25,6 @@
 #define KBATT_SETTLE_TIME_US	(100 * USEC_PER_MSEC)
 
 struct kbatt {
-	/* update lock */
-	struct mutex lock;
 	void __iomem *base;
 
 	unsigned long next_update; /* in jiffies */
@@ -36,8 +33,6 @@ struct kbatt {
 
 static bool kbatt_alarm(struct kbatt *kbatt)
 {
-	mutex_lock(&kbatt->lock);
-
 	if (!kbatt->next_update || time_after(jiffies, kbatt->next_update)) {
 		/* switch load on */
 		iowrite8(KBATT_CONTROL_BAT_TEST,
@@ -58,8 +53,6 @@ static bool kbatt_alarm(struct kbatt *kbatt)
 
 		kbatt->next_update = jiffies + KBATT_MAX_UPD_INTERVAL;
 	}
-
-	mutex_unlock(&kbatt->lock);
 
 	return kbatt->alarm;
 }
@@ -108,15 +101,10 @@ static int kbatt_probe(struct auxiliary_device *auxdev,
 	struct device *dev = &auxdev->dev;
 	struct device *hwmon_dev;
 	struct kbatt *kbatt;
-	int retval;
 
 	kbatt = devm_kzalloc(dev, sizeof(*kbatt), GFP_KERNEL);
 	if (!kbatt)
 		return -ENOMEM;
-
-	retval = devm_mutex_init(dev, &kbatt->lock);
-	if (retval)
-		return retval;
 
 	kbatt->base = devm_ioremap_resource(dev, &kbatt_auxdev->io);
 	if (IS_ERR(kbatt->base))

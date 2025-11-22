@@ -51,10 +51,6 @@ struct waterforce_data {
 	struct hid_device *hdev;
 	struct device *hwmon_dev;
 	struct dentry *debugfs;
-	/* For locking access to buffer */
-	struct mutex buffer_lock;
-	/* For queueing multiple readers */
-	struct mutex status_report_request_mutex;
 	/* For reinitializing the completion below */
 	spinlock_t status_report_request_lock;
 	struct completion status_report_received;
@@ -110,27 +106,17 @@ static umode_t waterforce_is_visible(const void *data,
 /* Writes the command to the device with the rest of the report filled with zeroes */
 static int waterforce_write_expanded(struct waterforce_data *priv, const u8 *cmd, int cmd_length)
 {
-	int ret;
-
-	mutex_lock(&priv->buffer_lock);
-
 	memcpy_and_pad(priv->buffer, MAX_REPORT_LENGTH, cmd, cmd_length, 0x00);
-	ret = hid_hw_output_report(priv->hdev, priv->buffer, MAX_REPORT_LENGTH);
-
-	mutex_unlock(&priv->buffer_lock);
-	return ret;
+	return hid_hw_output_report(priv->hdev, priv->buffer, MAX_REPORT_LENGTH);
 }
 
 static int waterforce_get_status(struct waterforce_data *priv)
 {
-	int ret = mutex_lock_interruptible(&priv->status_report_request_mutex);
-
-	if (ret < 0)
-		return ret;
+	int ret;
 
 	if (!time_after(jiffies, priv->updated + msecs_to_jiffies(STATUS_VALIDITY))) {
 		/* Data is up to date */
-		goto unlock_and_return;
+		return 0;
 	}
 
 	/*
@@ -146,19 +132,11 @@ static int waterforce_get_status(struct waterforce_data *priv)
 	/* Send command for getting status */
 	ret = waterforce_write_expanded(priv, get_status_cmd, GET_STATUS_CMD_LENGTH);
 	if (ret < 0)
-		goto unlock_and_return;
+		return ret;
 
 	ret = wait_for_completion_interruptible_timeout(&priv->status_report_received,
 							msecs_to_jiffies(STATUS_VALIDITY));
-	if (ret == 0)
-		ret = -ETIMEDOUT;
-
-unlock_and_return:
-	mutex_unlock(&priv->status_report_request_mutex);
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return ret == 0 ? -ETIMEDOUT : 0;
 }
 
 static int waterforce_read(struct device *dev, enum hwmon_sensor_types type,
@@ -355,8 +333,6 @@ static int waterforce_probe(struct hid_device *hdev, const struct hid_device_id 
 		goto fail_and_close;
 	}
 
-	mutex_init(&priv->status_report_request_mutex);
-	mutex_init(&priv->buffer_lock);
 	spin_lock_init(&priv->status_report_request_lock);
 	init_completion(&priv->status_report_received);
 	init_completion(&priv->fw_version_processed);

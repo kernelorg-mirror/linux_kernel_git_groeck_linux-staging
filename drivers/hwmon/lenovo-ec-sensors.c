@@ -26,7 +26,6 @@
 #include <linux/io.h>
 #include <linux/ioport.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/platform_device.h>
 #include <linux/types.h>
 #include <linux/units.h>
@@ -194,7 +193,6 @@ static const char * const p8_ec_fan_label[] = {
 };
 
 struct ec_sensors_data {
-	struct mutex mec_mutex; /* lock for sensor data access */
 	const char *const *fan_labels;
 	const char *const *temp_labels;
 	const int *fan_map;
@@ -208,9 +206,7 @@ lenovo_ec_do_read_temp(struct ec_sensors_data *data, u32 attr, int channel, long
 
 	switch (attr) {
 	case hwmon_temp_input:
-		mutex_lock(&data->mec_mutex);
 		lsb = get_ec_reg(2, 0x81 + channel);
-		mutex_unlock(&data->mec_mutex);
 		if (lsb <= 0x40)
 			return -ENODATA;
 		*val = (lsb - 0x40) * 1000;
@@ -228,17 +224,13 @@ lenovo_ec_do_read_fan(struct ec_sensors_data *data, u32 attr, int channel, long 
 	channel *= 2;
 	switch (attr) {
 	case hwmon_fan_input:
-		mutex_lock(&data->mec_mutex);
 		lsb = get_ec_reg(4, 0x20 + channel);
 		msb = get_ec_reg(4, 0x21 + channel);
-		mutex_unlock(&data->mec_mutex);
 		*val = (msb << 8) + lsb;
 		return 0;
 	case hwmon_fan_max:
-		mutex_lock(&data->mec_mutex);
 		lsb = get_ec_reg(4, 0x40 + channel);
 		msb = get_ec_reg(4, 0x41 + channel);
-		mutex_unlock(&data->mec_mutex);
 		*val = (msb << 8) + lsb;
 		return 0;
 	default:
@@ -528,14 +520,10 @@ static int lenovo_ec_probe(struct platform_device *pdev)
 
 	chip_info = &lenovo_ec_chip_info;
 
-	mutex_init(&ec_data->mec_mutex);
-
-	mutex_lock(&ec_data->mec_mutex);
 	app_id = inb_p(MCHP_EMI0_APPLICATION_ID);
 	if (app_id) /* check EMI Application ID Value */
 		outb_p(app_id, MCHP_EMI0_APPLICATION_ID); /* set EMI Application ID to 0 */
 	outw_p(MCHP_SING_IDX, MCHP_EMI0_EC_ADDRESS);
-	mutex_unlock(&ec_data->mec_mutex);
 
 	if ((inb_p(MCHP_EMI0_EC_DATA_BYTE0) != 'M') &&
 	    (inb_p(MCHP_EMI0_EC_DATA_BYTE1) != 'C') &&
