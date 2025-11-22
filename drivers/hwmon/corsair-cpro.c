@@ -15,7 +15,6 @@
 #include <linux/hwmon.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -40,7 +39,7 @@
 #define CTL_GET_TMP		0x11	/*
 					 * send: byte 1 is channel, rest zero
 					 * rcv:  returns temp for channel in centi-degree celsius
-					 * in bytes 1 and 2
+					 * in bytes 1 and 2 as a two's complement value
 					 * returns 0x11 in byte 0 if no sensor is connected
 					 */
 #define CTL_GET_VOLT		0x12	/*
@@ -86,14 +85,13 @@ struct ccp_device {
 	/* For reinitializing the completion below */
 	spinlock_t wait_input_report_lock;
 	struct completion wait_input_report;
-	struct mutex mutex; /* whenever buffer is used, lock before send_usb_cmd */
 	u8 *cmd_buffer;
 	u8 *buffer;
 	int buffer_recv_size; /* number of received bytes in buffer */
-	int target[6];
+	int target[NUM_FANS];
 	DECLARE_BITMAP(temp_cnct, NUM_TEMP_SENSORS);
 	DECLARE_BITMAP(fan_cnct, NUM_FANS);
-	char fan_label[6][LABEL_LENGTH];
+	char fan_label[NUM_FANS][LABEL_LENGTH];
 	u8 firmware_ver[3];
 	u8 bootloader_ver[2];
 };
@@ -174,18 +172,14 @@ static int get_data(struct ccp_device *ccp, int command, int channel, bool two_b
 {
 	int ret;
 
-	mutex_lock(&ccp->mutex);
-
 	ret = send_usb_cmd(ccp, command, channel, 0, 0);
 	if (ret)
-		goto out_unlock;
+		return ret;
 
 	ret = ccp->buffer[1];
 	if (two_byte_data)
 		ret = (ret << 8) + ccp->buffer[2];
 
-out_unlock:
-	mutex_unlock(&ccp->mutex);
 	return ret;
 }
 
@@ -199,28 +193,21 @@ static int set_pwm(struct ccp_device *ccp, int channel, long val)
 	/* The Corsair Commander Pro uses values from 0-100 */
 	val = DIV_ROUND_CLOSEST(val * 100, 255);
 
-	mutex_lock(&ccp->mutex);
-
 	ret = send_usb_cmd(ccp, CTL_SET_FAN_FPWM, channel, val, 0);
-	if (!ret)
-		ccp->target[channel] = -ENODATA;
+	if (ret)
+		return ret;
 
-	mutex_unlock(&ccp->mutex);
-	return ret;
+	ccp->target[channel] = -ENODATA;
+
+	return 0;
 }
 
 static int set_target(struct ccp_device *ccp, int channel, long val)
 {
-	int ret;
-
 	val = clamp_val(val, 0, 0xFFFF);
 	ccp->target[channel] = val;
 
-	mutex_lock(&ccp->mutex);
-	ret = send_usb_cmd(ccp, CTL_SET_FAN_TARGET, channel, val >> 8, val);
-
-	mutex_unlock(&ccp->mutex);
-	return ret;
+	return send_usb_cmd(ccp, CTL_SET_FAN_TARGET, channel, val >> 8, val);
 }
 
 static int ccp_read_string(struct device *dev, enum hwmon_sensor_types type,
@@ -258,7 +245,7 @@ static int ccp_read(struct device *dev, enum hwmon_sensor_types type,
 			ret = get_data(ccp, CTL_GET_TMP, channel, true);
 			if (ret < 0)
 				return ret;
-			*val = ret * 10;
+			*val = (s16)ret * 10;
 			return 0;
 		default:
 			break;
@@ -617,7 +604,6 @@ static int ccp_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	ccp->hdev = hdev;
 	hid_set_drvdata(hdev, ccp);
 
-	mutex_init(&ccp->mutex);
 	spin_lock_init(&ccp->wait_input_report_lock);
 	init_completion(&ccp->wait_input_report);
 

@@ -21,7 +21,6 @@
 #include <linux/init.h>
 #include <linux/minmax.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/of_platform.h>
 #include <linux/pwm.h>
 #include <linux/regmap.h>
@@ -126,7 +125,6 @@ module_param(init, int, 0444);
 
 struct amc6821_data {
 	struct regmap *regmap;
-	struct mutex update_lock;
 	unsigned long fan_state;
 	unsigned long fan_max_state;
 	unsigned int *fan_cooling_levels;
@@ -508,9 +506,9 @@ static ssize_t temp_auto_point_temp_show(struct device *dev,
 	u8 temps[3];
 	int err;
 
-	mutex_lock(&data->update_lock);
+	hwmon_lock(dev);
 	err = amc6821_get_auto_point_temps(data->regmap, nr, temps);
-	mutex_unlock(&data->update_lock);
+	hwmon_unlock(dev);
 	if (err)
 		return err;
 
@@ -591,8 +589,7 @@ static ssize_t temp_auto_point_temp_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	mutex_lock(&data->update_lock);
-
+	hwmon_lock(dev);
 	ret = amc6821_get_auto_point_temps(data->regmap, nr, temps);
 	if (ret)
 		goto unlock;
@@ -633,7 +630,7 @@ static ssize_t temp_auto_point_temp_store(struct device *dev,
 		break;
 	}
 unlock:
-	mutex_unlock(&data->update_lock);
+	hwmon_unlock(dev);
 	return ret ? : count;
 }
 
@@ -650,7 +647,7 @@ static ssize_t pwm1_auto_point_pwm_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	mutex_lock(&data->update_lock);
+	hwmon_lock(dev);
 	ret = regmap_write(regmap, AMC6821_REG_DCY_LOW_TEMP, val);
 	if (ret)
 		goto unlock;
@@ -666,7 +663,7 @@ static ssize_t pwm1_auto_point_pwm_store(struct device *dev,
 			break;
 	}
 unlock:
-	mutex_unlock(&data->update_lock);
+	hwmon_unlock(dev);
 	return ret ? : count;
 }
 

@@ -8,7 +8,6 @@
 #include <linux/device.h>
 #include <linux/hwmon.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/types.h>
 #include <linux/usb.h>
 
@@ -34,7 +33,7 @@ struct powerz_sensor_data {
 
 struct powerz_priv {
 	char transfer_buffer[64];	/* first member to satisfy DMA alignment */
-	struct mutex mutex;
+	struct device *hwmon;
 	struct completion completion;
 	struct urb *urb;
 	int status;
@@ -148,10 +147,9 @@ static int powerz_read(struct device *dev, enum hwmon_sensor_types type,
 	if (!priv)
 		return -EIO;	/* disconnected */
 
-	mutex_lock(&priv->mutex);
 	ret = powerz_read_data(udev, priv);
 	if (ret)
-		goto out;
+		return ret;
 
 	data = (struct powerz_sensor_data *)priv->transfer_buffer;
 
@@ -189,8 +187,6 @@ static int powerz_read(struct device *dev, enum hwmon_sensor_types type,
 		ret = -EOPNOTSUPP;
 	}
 
-out:
-	mutex_unlock(&priv->mutex);
 	return ret;
 }
 
@@ -209,7 +205,6 @@ static int powerz_probe(struct usb_interface *intf,
 			const struct usb_device_id *id)
 {
 	struct powerz_priv *priv;
-	struct device *hwmon_dev;
 	struct device *parent;
 
 	parent = &intf->dev;
@@ -221,15 +216,14 @@ static int powerz_probe(struct usb_interface *intf,
 	priv->urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!priv->urb)
 		return -ENOMEM;
-	mutex_init(&priv->mutex);
 	init_completion(&priv->completion);
 
-	hwmon_dev =
+	priv->hwmon =
 	    devm_hwmon_device_register_with_info(parent, DRIVER_NAME, priv,
 						 &powerz_chip_info, NULL);
-	if (IS_ERR(hwmon_dev)) {
+	if (IS_ERR(priv->hwmon)) {
 		usb_free_urb(priv->urb);
-		return PTR_ERR(hwmon_dev);
+		return PTR_ERR(priv->hwmon);
 	}
 
 	usb_set_intfdata(intf, priv);
@@ -241,10 +235,10 @@ static void powerz_disconnect(struct usb_interface *intf)
 {
 	struct powerz_priv *priv = usb_get_intfdata(intf);
 
-	mutex_lock(&priv->mutex);
+	hwmon_lock(priv->hwmon);
 	usb_kill_urb(priv->urb);
 	usb_free_urb(priv->urb);
-	mutex_unlock(&priv->mutex);
+	hwmon_unlock(priv->hwmon);
 }
 
 static const struct usb_device_id powerz_id_table[] = {
