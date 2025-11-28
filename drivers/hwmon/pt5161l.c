@@ -7,7 +7,6 @@
 #include <linux/init.h>
 #include <linux/hwmon.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 
 /* Aries current average temp ADC code CSR */
 #define ARIES_CURRENT_AVG_TEMP_ADC_CSR	0x42c
@@ -62,9 +61,9 @@ struct pt5161l_fw_ver {
 
 /* Each client has this additional data */
 struct pt5161l_data {
+	struct device *hwmon;
 	struct i2c_client *client;
 	struct pt5161l_fw_ver fw_ver;
-	struct mutex lock; /* for atomic I2C transactions */
 	bool init_done;
 	bool code_load_okay; /* indicate if code load reg value is expected */
 	bool mm_heartbeat_okay; /* indicate if Main Micro heartbeat is good */
@@ -403,9 +402,7 @@ static int pt5161l_init_dev(struct pt5161l_data *data)
 {
 	int ret;
 
-	mutex_lock(&data->lock);
 	ret = pt5161l_fwsts_check(data);
-	mutex_unlock(&data->lock);
 	if (ret)
 		return ret;
 
@@ -434,11 +431,9 @@ static int pt5161l_read(struct device *dev, enum hwmon_sensor_types type,
 				return ret;
 		}
 
-		mutex_lock(&data->lock);
 		ret = pt5161l_read_wide_reg(data,
 					    ARIES_CURRENT_AVG_TEMP_ADC_CSR, 4,
 					    buf);
-		mutex_unlock(&data->lock);
 		if (ret) {
 			dev_dbg(dev, "Read adc_code failed %d\n", ret);
 			return ret;
@@ -497,9 +492,9 @@ static ssize_t pt5161l_debugfs_read_fw_ver(struct file *file, char __user *buf,
 	int ret;
 	char ver[32];
 
-	mutex_lock(&data->lock);
+	hwmon_lock(data->hwmon);
 	ret = pt5161l_fwsts_check(data);
-	mutex_unlock(&data->lock);
+	hwmon_unlock(data->hwmon);
 	if (ret)
 		return ret;
 
@@ -523,9 +518,9 @@ static ssize_t pt5161l_debugfs_read_fw_load_sts(struct file *file,
 	bool status = false;
 	char health[16];
 
-	mutex_lock(&data->lock);
+	hwmon_lock(data->hwmon);
 	ret = pt5161l_fw_load_check(data);
-	mutex_unlock(&data->lock);
+	hwmon_unlock(data->hwmon);
 	if (ret == 0)
 		status = data->code_load_okay;
 
@@ -548,9 +543,9 @@ static ssize_t pt5161l_debugfs_read_hb_sts(struct file *file, char __user *buf,
 	bool status = false;
 	char health[16];
 
-	mutex_lock(&data->lock);
+	hwmon_lock(data->hwmon);
 	ret = pt5161l_heartbeat_check(data);
-	mutex_unlock(&data->lock);
+	hwmon_unlock(data->hwmon);
 	if (ret == 0)
 		status = data->mm_heartbeat_okay;
 
@@ -580,7 +575,6 @@ static void pt5161l_init_debugfs(struct i2c_client *client, struct pt5161l_data 
 static int pt5161l_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
-	struct device *hwmon_dev;
 	struct pt5161l_data *data;
 
 	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
@@ -588,16 +582,15 @@ static int pt5161l_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	data->client = client;
-	mutex_init(&data->lock);
 	pt5161l_init_dev(data);
 	dev_set_drvdata(dev, data);
 
-	hwmon_dev = devm_hwmon_device_register_with_info(dev, client->name,
-							 data,
-							 &pt5161l_chip_info,
-							 NULL);
-	if (IS_ERR(hwmon_dev))
-		return PTR_ERR(hwmon_dev);
+	data->hwmon = devm_hwmon_device_register_with_info(dev, client->name,
+							   data,
+							   &pt5161l_chip_info,
+							   NULL);
+	if (IS_ERR(data->hwmon))
+		return PTR_ERR(data->hwmon);
 
 	pt5161l_init_debugfs(client, data);
 
